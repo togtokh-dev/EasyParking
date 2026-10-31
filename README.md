@@ -27,11 +27,20 @@ const ep = new EasyParking({
 });
 ```
 
+Орчны хувьсагчаар тохируулах бол [.env.example](.env.example)-ийг `.env` болгон хуулна
+(lib өөрөө `.env` уншихгүй — `node --env-file=.env app.js` эсвэл `dotenv` ашиглана):
+
+```bash
+EASYPARKING_API_KEY=...          # заавал
+EASYPARKING_ENVIRONMENT=test     # test | production
+EASYPARKING_BASE_URL=            # сонголттой
+```
+
 | Сонголт | Анхдагч | Тайлбар |
 |---|---|---|
 | `apiKey` | `EASYPARKING_API_KEY` | `X-API-Key` |
-| `environment` | `"test"` | `test.easy-parking.mn` / `site.easy-parking.mn` |
-| `baseURL` | — | Proxy г.м (`…/api/v1` хүртэл) |
+| `environment` | `EASYPARKING_ENVIRONMENT` → `"test"` | `test.easy-parking.mn` / `site.easy-parking.mn` |
+| `baseURL` | `EASYPARKING_BASE_URL` | Proxy г.м (`…/api/v1` хүртэл) |
 | `timeout` | `20000` | мс |
 | `maxRetries` | `2` | Зөвхөн давтахад аюулгүй хүсэлтэд |
 | `routes` | `"default"` | `"socialpay"` → `/socialpay/*` замууд |

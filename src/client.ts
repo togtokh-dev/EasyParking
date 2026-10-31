@@ -14,9 +14,9 @@ export const BASE_URLS: Record<Environment, string> = {
 export interface ClientOptions {
   /** X-API-Key. Анхдагч: `process.env.EASYPARKING_API_KEY` */
   apiKey?: string;
-  /** Анхдагч "test". Түлхүүр орчин бүрд тусдаа. */
+  /** Анхдагч: `EASYPARKING_ENVIRONMENT`, эс бол "test". Түлхүүр орчин бүрд тусдаа. */
   environment?: Environment;
-  /** `environment`-ийг дарж бичнэ (жишээ нь proxy). `/api/v1` хүртэл. */
+  /** `environment`-ийг дарж бичнэ (жишээ нь proxy). `/api/v1` хүртэл. Анхдагч: `EASYPARKING_BASE_URL` */
   baseURL?: string;
   /** мс, анхдагч 20000 */
   timeout?: number;
@@ -62,8 +62,12 @@ export class EasyParking {
     const fetchFn = options.fetch ?? (globalThis.fetch?.bind(globalThis) as Fetch | undefined);
     if (!fetchFn) throw new EasyParkingError("fetch олдсонгүй — Node 18+ эсвэл `fetch` сонголт өгнө үү");
 
-    this.environment = options.environment ?? "test";
-    this.baseURL = options.baseURL ?? BASE_URLS[this.environment];
+    const envName = options.environment ?? (readEnv("EASYPARKING_ENVIRONMENT") || "test");
+    if (!(envName in BASE_URLS)) {
+      throw new EasyParkingError(`environment нь "test" эсвэл "production" байх ёстой: ${envName}`);
+    }
+    this.environment = envName as Environment;
+    this.baseURL = options.baseURL ?? (readEnv("EASYPARKING_BASE_URL") || BASE_URLS[this.environment]);
 
     const config: CoreConfig = {
       apiKey,

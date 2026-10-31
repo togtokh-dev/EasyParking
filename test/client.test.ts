@@ -27,6 +27,21 @@ describe("client", () => {
     expect(calls[0]!.url.search).toContain("%D0%A3"); // UTF-8 URL-encode
   });
 
+  it("reads environment and baseURL from env", () => {
+    const fetch = async () => new Response();
+    process.env.EASYPARKING_ENVIRONMENT = "production";
+    expect(new EasyParking({ apiKey: "k", fetch }).baseURL).toBe("https://site.easy-parking.mn/api/v1");
+    process.env.EASYPARKING_BASE_URL = "https://proxy.local/api/v1";
+    expect(new EasyParking({ apiKey: "k", fetch }).baseURL).toBe("https://proxy.local/api/v1");
+    process.env.EASYPARKING_ENVIRONMENT = "";
+    process.env.EASYPARKING_BASE_URL = "";
+    expect(new EasyParking({ apiKey: "k", fetch }).environment).toBe("test");
+    process.env.EASYPARKING_ENVIRONMENT = "prod";
+    expect(() => new EasyParking({ apiKey: "k", fetch })).toThrow(/test" эсвэл "production/);
+    delete process.env.EASYPARKING_ENVIRONMENT;
+    delete process.env.EASYPARKING_BASE_URL;
+  });
+
   it("uses production base URL", () => {
     const { client } = mockClient([], { environment: "production" });
     expect(client.baseURL).toBe("https://site.easy-parking.mn/api/v1");
