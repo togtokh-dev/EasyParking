@@ -1,0 +1,56 @@
+{
+  "name": "@togtokh.dev/easyparking",
+  "version": "0.1.0",
+  "description": "EasyParking × Wallet партнер API-ийн TypeScript client (v1.2): зогсолт, төлбөр, өр, e-Barimt, урьдчилсан захиалга, машин бүртгэл, webhook.",
+  "license": "MIT",
+  "author": "togtokh.dev <togtokh.dev@gmail.com>",
+  "keywords": [
+    "easyparking",
+    "parking",
+    "mongolia",
+    "wallet",
+    "payment",
+    "ebarimt",
+    "monpay",
+    "socialpay",
+    "sdk"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
