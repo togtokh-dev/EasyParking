@@ -1,4 +1,4 @@
-# @togtokh.dev/easyparking
+# easyparking
 
 EasyParking × Wallet партнер API v1.2-ийн Node.js / TypeScript client.
 Зогсолт хайх, төлбөр (өртэй нь), e-Barimt, урьдчилсан захиалга, газрын зураг,
@@ -10,7 +10,7 @@ EasyParking × Wallet партнер API v1.2-ийн Node.js / TypeScript client
 - `payments.confirmSafely()` — §13.2-ын «confirm-ийн 409/5xx/timeout»-ын логик бэлэн
 
 ```bash
-npm install @togtokh.dev/easyparking
+npm install easyparking
 ```
 
 > ⚠️ API түлхүүрийг **зөвхөн backend**-д хадгална (§2). Browser-т client үүсгэвэл
@@ -19,7 +19,7 @@ npm install @togtokh.dev/easyparking
 ## Эхлэх
 
 ```ts
-import { EasyParking } from "@togtokh.dev/easyparking";
+import { EasyParking } from "easyparking";
 
 const ep = new EasyParking({
   apiKey: process.env.EASYPARKING_API_KEY, // анхдагчаар энэ env-ээс уншина
@@ -49,7 +49,7 @@ EASYPARKING_BASE_URL=            # сонголттой
 ## Төлбөрийн үндсэн урсгал (§3)
 
 ```ts
-import { normalizePlate, hasLatinLetters } from "@togtokh.dev/easyparking";
+import { normalizePlate, hasLatinLetters } from "easyparking";
 
 const plate = normalizePlate(userInput);          // "7886 укр" → "7886УКР"
 if (hasLatinLetters(plate)) throw new Error("Дугаараа кирилл үсгээр оруулна уу");
@@ -153,7 +153,7 @@ HMAC гарын үсэг **байхгүй** — мөнгөний шийдвэр�
 
 ```ts
 import express from "express";
-import { parseWebhook, parseVehicleNotification, isEasyParkingIP, VEHICLE_NOTIFICATION_ACK } from "@togtokh.dev/easyparking";
+import { parseWebhook, parseVehicleNotification, isEasyParkingIP, VEHICLE_NOTIFICATION_ACK } from "easyparking";
 
 app.post("/easyparking/webhook", express.text({ type: "*/*" }), async (req, res) => {
   if (!isEasyParkingIP(req.ip, "production")) return res.sendStatus(403);
@@ -178,7 +178,7 @@ app.post("/parking/notification", express.json(), async (req, res) => {
 ## Алдаа
 
 ```ts
-import { APIError, ConflictError, RateLimitError, APITimeoutError } from "@togtokh.dev/easyparking";
+import { APIError, ConflictError, RateLimitError, APITimeoutError } from "easyparking";
 
 try { … } catch (err) {
   if (err instanceof APIError) {

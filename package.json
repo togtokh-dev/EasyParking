@@ -1,5 +1,5 @@
 {
-  "name": "@togtokh.dev/easyparking",
+  "name": "easyparking",
   "version": "0.1.0",
   "description": "EasyParking × Wallet партнер API-ийн TypeScript client (v1.2): зогсолт, төлбөр, өр, e-Barimt, урьдчилсан захиалга, машин бүртгэл, webhook.",
   "license": "MIT",
