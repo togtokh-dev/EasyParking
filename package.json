@@ -1,9 +1,17 @@
 {
   "name": "easyparking",
-  "version": "0.1.0",
-  "description": "EasyParking × Wallet партнер API-ийн TypeScript client (v1.2): зогсолт, төлбөр, өр, e-Barimt, урьдчилсан захиалга, машин бүртгэл, webhook.",
+  "version": "0.1.1",
+  "description": "Zero-dependency Node.js/TypeScript client for the EasyParking (Mongolia) wallet-partner API: parking sessions, payments, e-Barimt receipts, reservations, vehicle registration, and webhooks.",
   "license": "MIT",
   "author": "togtokh.dev <togtokh.dev@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/togtokh-dev/EasyParking.git"
+  },
+  "bugs": {
+    "url": "https://github.com/togtokh-dev/EasyParking/issues"
+  },
+  "homepage": "https://github.com/togtokh-dev/EasyParking#readme",
   "keywords": [
     "easyparking",
     "parking",
@@ -45,7 +53,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",

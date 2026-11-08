@@ -1,196 +1,265 @@
 # easyparking
 
-EasyParking × Wallet партнер API v1.2-ийн Node.js / TypeScript client.
-Зогсолт хайх, төлбөр (өртэй нь), e-Barimt, урьдчилсан захиалга, газрын зураг,
-машин бүртгэл, webhook — MonPay, SocialPay, EasyWallet, Ард апп-д.
+Zero-dependency Node.js / TypeScript client for the **EasyParking × Wallet partner API** (Mongolia, spec v1.2) — used by wallet apps such as MonPay, SocialPay, EasyWallet and Ard to look up parking sessions, take payments (with outstanding debts), issue e-Barimt receipts, make advance reservations, show the parking map, register vehicles, and receive webhooks.
 
-- Runtime dependency **0** — Node 18+ native `fetch`
-- ESM + CommonJS, бүрэн TypeScript төрөл
-- Специйн давталтын дүрэм (§13) суусан: аюулгүй хүсэлтийг л автоматаар давтана
-- `payments.confirmSafely()` — §13.2-ын «confirm-ийн 409/5xx/timeout»-ын логик бэлэн
+- **0 runtime dependencies** — uses the native `fetch` in Node 18+
+- Ships both **ESM and CommonJS** builds with full TypeScript types
+- Built-in retry policy: only retry-safe requests are retried automatically
+- `payments.confirmSafely()` implements the "confirm returned 409 / 5xx / timeout" reconciliation logic
+
+## Install
 
 ```bash
 npm install easyparking
 ```
 
-> ⚠️ API түлхүүрийг **зөвхөн backend**-д хадгална (§2). Browser-т client үүсгэвэл
-> алдаа заана (`dangerouslyAllowBrowser: true`-ээр л зөвшөөрнө).
+> ⚠️ Keep your API key on the **backend only**. Constructing the client in a browser throws; pass `dangerouslyAllowBrowser: true` to override intentionally.
 
-## Эхлэх
+## Quick start
+
+TypeScript:
 
 ```ts
 import { EasyParking } from "easyparking";
 
 const ep = new EasyParking({
-  apiKey: process.env.EASYPARKING_API_KEY, // анхдагчаар энэ env-ээс уншина
-  environment: "test",                     // "test" (анхдагч) | "production"
+  apiKey: process.env.EASYPARKING_API_KEY, // read from this env var by default
+  environment: "test",                     // "test" (default) | "production"
 });
 ```
 
-Орчны хувьсагчаар тохируулах бол [.env.example](.env.example)-ийг `.env` болгон хуулна
-(lib өөрөө `.env` уншихгүй — `node --env-file=.env app.js` эсвэл `dotenv` ашиглана):
+JavaScript (ESM):
 
-```bash
-EASYPARKING_API_KEY=...          # заавал
-EASYPARKING_ENVIRONMENT=test     # test | production
-EASYPARKING_BASE_URL=            # сонголттой
+```js
+import { EasyParking } from "easyparking";
+
+const ep = new EasyParking({ apiKey: "your-api-key", environment: "test" });
 ```
 
-| Сонголт | Анхдагч | Тайлбар |
-|---|---|---|
-| `apiKey` | `EASYPARKING_API_KEY` | `X-API-Key` |
-| `environment` | `EASYPARKING_ENVIRONMENT` → `"test"` | `test.easy-parking.mn` / `site.easy-parking.mn` |
-| `baseURL` | `EASYPARKING_BASE_URL` | Proxy г.м (`…/api/v1` хүртэл) |
-| `timeout` | `20000` | мс |
-| `maxRetries` | `2` | Зөвхөн давтахад аюулгүй хүсэлтэд |
-| `routes` | `"default"` | `"socialpay"` → `/socialpay/*` замууд |
-| `fetch` | `globalThis.fetch` | Custom fetch (тест, proxy) |
+JavaScript (CommonJS):
 
-## Төлбөрийн үндсэн урсгал (§3)
+```js
+const { EasyParking } = require("easyparking");
+
+const ep = new EasyParking({ apiKey: "your-api-key", environment: "test" });
+```
+
+The library does not read `.env` itself. Load environment variables with Node's
+`node --env-file=.env app.js` or a package like `dotenv`:
+
+```bash
+EASYPARKING_API_KEY=your-api-key   # required
+EASYPARKING_ENVIRONMENT=test       # test | production (default: test)
+EASYPARKING_BASE_URL=              # optional, overrides the environment URL
+```
+
+### Client options (`ClientOptions`)
+
+| Option | Default | Description |
+|---|---|---|
+| `apiKey` | `EASYPARKING_API_KEY` env | Sent as the `X-API-Key` header. Throws if neither is set. |
+| `environment` | `EASYPARKING_ENVIRONMENT` env → `"test"` | `test` → `https://test.easy-parking.mn/api/v1`, `production` → `https://site.easy-parking.mn/api/v1` |
+| `baseURL` | `EASYPARKING_BASE_URL` env | Override the base URL (e.g. a proxy), up to `…/api/v1` |
+| `timeout` | `20000` | Per-request timeout in ms |
+| `maxRetries` | `2` | Max retries for retry-safe requests only |
+| `routes` | `"default"` | `"socialpay"` routes vehicle/parking calls through `/socialpay/*` (identical responses) |
+| `fetch` | `globalThis.fetch` | Custom fetch implementation (tests, proxies) |
+| `defaultHeaders` | – | Extra headers sent on every request |
+| `dangerouslyAllowBrowser` | `false` | Allow constructing the client in a browser |
+
+The exported `BASE_URLS` record maps each environment to its base URL.
+
+The client exposes these resource groups: `ep.sessions`, `ep.recentExits`,
+`ep.payments`, `ep.reservations`, `ep.parkings`, `ep.sites`, `ep.vehicles`.
+Every method takes an optional final `options` argument
+(`{ timeout?, maxRetries?, signal?, headers? }`).
+
+## Sessions & the payment flow
 
 ```ts
-import { normalizePlate, hasLatinLetters } from "easyparking";
+import { EasyParking, normalizePlate, hasLatinLetters } from "easyparking";
 
 const plate = normalizePlate(userInput);          // "7886 укр" → "7886УКР"
-if (hasLatinLetters(plate)) throw new Error("Дугаараа кирилл үсгээр оруулна уу");
+if (hasLatinLetters(plate)) throw new Error("Enter the plate in Cyrillic letters");
 
-// 1. Лавлах — бүх зогсоолоос
+// 1. Look up the session across all sites
 const { sessions } = await ep.sessions.list({ plate });
 const s = sessions[0];
-// s.amount_due — зөвхөн зогсолт; s.debts[] — өмнөх өр (огноотой), тусад нь харуулна
+// s.amount_due — this session only; s.debts[] — prior debts, shown separately
 
-// 2. «Төлөх» дармагц intent
+// 2. Create a payment intent when the user taps "Pay"
 const intent = await ep.payments.create({ session_id: s.session_id, include_debts: true });
 
-// 3. Хэтэвчээс intent.amount-ыг татна (таны тал)
+// 3. Charge intent.amount from the wallet (your side)
 const charged = await wallet.charge(user, intent.amount);
 if (!charged.ok) {
-  await ep.payments.cancel(intent.payment_id);    // орхигдсон intent БҮРИЙГ цуцална!
+  await ep.payments.cancel(intent.payment_id);    // always cancel abandoned intents
   return;
 }
 
-// 4. Батлах — 409/5xx/timeout-ийн үед §13.2-ын дагуу GET → давталт
+// 4. Confirm — handles 409/5xx/timeout by re-reading state, then retrying
 const result = await ep.payments.confirmSafely(intent.payment_id, {
   transaction_id: charged.txId,
   amount: intent.amount,
 });
 
 switch (result.outcome) {
-  case "PAID":                       // ✅ хаалт нээгдэнэ / exit_deadline хүртэл үнэгүй гарна
+  case "PAID":                       // barrier opens / free exit until exit_deadline
     break;
-  case "PAID_BY_OTHER_TRANSACTION":  // өөр гүйлгээгээр аль хэдийн төлөгдсөн — энэ мөнгийг тулгаж буцаана
+  case "PAID_BY_OTHER_TRANSACTION":  // already paid by a different transaction — reconcile and refund
     break;
-  case "UNRESOLVED":                 // мөнгийг буцаахаас ӨМНӨ EasyParking-тэй тулгана
+  case "UNRESOLVED":                 // reconcile with EasyParking before refunding
     break;
 }
 ```
 
-`confirm()`-ийг шууд дуудаж болно, гэхдээ тэр **хэзээ ч автоматаар давтагдахгүй** —
-мөнгө татагдсаны дараах тодорхойгүй байдлыг өөрөө шийдэх ёстой.
+`ep.payments.methods`:
 
-### e-Barimt (§7)
+| Method | Notes |
+|---|---|
+| `create(params)` | Create/return a PENDING payment intent (retry-safe) |
+| `confirm(paymentId, params)` | Confirm after charging. **Never retried automatically** |
+| `confirmSafely(paymentId, params, options?)` | Confirm + reconciliation; returns `{ outcome: "PAID" \| "PAID_BY_OTHER_TRANSACTION" \| "UNRESOLVED", … }` |
+| `cancel(paymentId)` | Cancel an intent known not to be charged (retry-safe) |
+| `retrieve(paymentId)` | Fetch payment status and all e-Barimt receipts |
 
-Баримтыг **зөвхөн EasyParking** гаргана — wallet өөрөө бүү гарга. Confirm-ийн
-хариунд ихэвчлэн `ddtd: null`. `receipt.ready` webhook ирмэгц (эсвэл webhook-гүй бол
-2–3с, дараа нь 5–10с тутам) GET хийж QR-ыг **өөрөө хадгална**:
+Call `confirm()` directly if you prefer, but it is **never retried automatically** —
+you must resolve the post-charge uncertainty yourself. `confirmSafely()` accepts
+`maxAttempts` (default 3) and `retryDelayMs` (default 1500) in addition to the
+usual request options.
+
+### e-Barimt receipts
+
+Receipts are issued **only by EasyParking** — never generate them in the wallet.
+After a `receipt.ready` webhook (or by polling), fetch and persist the QR data:
 
 ```ts
 const p = await ep.payments.retrieve(paymentId);
 for (const r of p.ebarimts) {
-  if (r.status === "SENT") save(r.receipt_id, { kind: r.kind, debt_id: r.debt_id, ddtd: r.ddtd, lottery: r.lottery, qr: r.qr_data });
+  if (r.status === "SENT") {
+    save(r.receipt_id, { kind: r.kind, debt_id: r.debt_id, ddtd: r.ddtd, lottery: r.lottery, qr: r.qr_data });
+  }
 }
 ```
 
-## Урьдчилсан захиалга (§9)
+## Reservations
 
 ```ts
 const a = await ep.reservations.availability({
-  site_code: "NOMADS",
-  start_time: "2026-10-23T10:00:00+08:00",   // бүсийн тэмдэг ЗААВАЛ (эсвэл Date)
+  site_code: "your-site-code",
+  start_time: "2026-10-23T10:00:00+08:00",   // timezone offset REQUIRED (or a Date)
   duration_minutes: 120,
 });
 
 const r = await ep.reservations.create({
-  site_code: "NOMADS", plate_number: "1234УБА",
-  start_time: "2026-10-23T10:00:00+08:00", duration_minutes: 120,
-  external_ref: order.id,                    // идемпотент — timeout-ийн дараа аюулгүй давтана
+  site_code: "your-site-code",
+  plate_number: "1234УБА",
+  start_time: "2026-10-23T10:00:00+08:00",
+  duration_minutes: 120,
+  external_ref: order.id,                     // idempotent — safe to retry after a timeout
 });
-// r.amount-ыг татаад hold_expires_at-аас өмнө:
+
+// Charge r.amount, then confirm before hold_expires_at:
 await ep.reservations.confirm(r.reservation_id, { transaction_id: tx.id, amount: r.amount });
 
-await ep.reservations.cancel(r.reservation_id, { reason: "user" });  // refund_amount-ыг ТА буцаана
-await ep.reservations.list({ user_id: "100264", status: ["CONFIRMED", "CHECKED_IN"] });
+await ep.reservations.cancel(r.reservation_id, { reason: "user" });  // you refund refund_amount
+await ep.reservations.retrieve(r.reservation_id);
+await ep.reservations.list({ user_id: "your-user-id", status: ["CONFIRMED", "CHECKED_IN"] });
 ```
 
-Захиалгын алдаа `err.code`-оор ирнэ (`NO_AVAILABILITY`, `HOLD_EXPIRED`, `NO_REFUND_WINDOW` …).
+`availability()` and `create()` convert `start_time` / `end_time` to a
+timezone-qualified ISO string via `toZonedISOString()`; a zone offset is required.
+`create()` is retried automatically only when `external_ref` is set; `confirm()` is
+never retried automatically. Reservation errors surface a machine-readable
+`err.code` (`NO_AVAILABILITY`, `HOLD_EXPIRED`, `NO_REFUND_WINDOW`, …).
 
-## Газрын зураг, бусад
+## Parking map & sites
 
 ```ts
-await ep.parkings.list();       // 1–5 минут кэшлэ — хэрэглэгч бүрээр бүү тат
-await ep.recentExits.list({ minutes: 5 });   // ≥30 секунд тутам
-await ep.sites.list();          // доторх хэсгийн site_code тайлах үед л
+await ep.parkings.list();                   // cache for 1–5 min — don't call per user
+await ep.recentExits.list({ minutes: 5 });  // cars waiting to pay at the exit; poll ≥ every 30s
+await ep.sites.list();                      // resolve inner-area site codes by name
 ```
 
-## Машин бүртгэл, bill (§11) — `vehicles` эрх
+## Vehicle registration & bill (requires the `vehicles` scope)
 
 ```ts
-const ep = new EasyParking({ apiKey, routes: "socialpay" }); // SocialPay бол; бусад нь "default"
+const ep = new EasyParking({ apiKey: "your-api-key", routes: "socialpay" }); // or "default"
 
-await ep.vehicles.register({ plateNo: "7886УКР", userId: "100264" }); // Message: OK | ALREADY_REGISTERED
-const bill = await ep.vehicles.bill({ plateNo: "7886УКР", userId: "100264" });
-if (bill.Message === "NO_ACTIVE_SESSION") { /* зогсоолд алга */ }
-else if (bill.data!.payableOnline) {
-  await ep.payments.create({ session_id: bill.data!.sessionId, include_debts: bill.data!.debtCount > 0 });
+await ep.vehicles.register({ plateNo: "7886УКР", userId: "your-user-id" }); // Message: OK | ALREADY_REGISTERED
+const bill = await ep.vehicles.bill({ plateNo: "7886УКР", userId: "your-user-id" });
+if (bill.Message === "NO_ACTIVE_SESSION") {
+  // not currently parked
+} else if (bill.data?.payableOnline) {
+  await ep.payments.create({ session_id: bill.data.sessionId, include_debts: bill.data.debtCount > 0 });
 }
-await ep.vehicles.delete({ plateNo: "7886УКР", userId: "100264" });   // Message: OK | NOT_FOUND
+await ep.vehicles.delete({ plateNo: "7886УКР", userId: "your-user-id" });   // Message: OK | NOT_FOUND
 ```
 
-## Webhook (§8, §11.5)
+Business errors (`{ "Success": false, … }`) are thrown as `APIError`, with the
+server's `Message` exposed on `err.code`.
 
-HMAC гарын үсэг **байхгүй** — мөнгөний шийдвэрийн өмнө `payments.retrieve()`-ээр
-баталгаажуул. Хүсвэл эх IP-г шалга. Event дахин ирж болно (at-least-once).
+## Webhooks
+
+There is **no HMAC signature** — before acting on money, verify with
+`payments.retrieve()`. You can optionally check the source IP. The same event may
+arrive more than once (at-least-once delivery).
 
 ```ts
 import express from "express";
-import { parseWebhook, parseVehicleNotification, isEasyParkingIP, VEHICLE_NOTIFICATION_ACK } from "easyparking";
+import {
+  parseWebhook,
+  parseVehicleNotification,
+  isEasyParkingIP,
+  VEHICLE_NOTIFICATION_ACK,
+} from "easyparking";
 
+// Payment / receipt / reservation events
 app.post("/easyparking/webhook", express.text({ type: "*/*" }), async (req, res) => {
   if (!isEasyParkingIP(req.ip, "production")) return res.sendStatus(403);
   const { event, idempotencyKey, isTest } = parseWebhook(req.body, req.headers);
-  if (isTest) return res.sendStatus(200);                 // payment.paid.test — мөнгөний бүртгэлд бүү оруул
+  if (isTest) return res.sendStatus(200);                 // payment.paid.test — don't record as money
   if (await alreadyProcessed(idempotencyKey)) return res.sendStatus(200);
-  await queue.push(event);                                // 10с-д 2xx — дараалалд хийгээд шууд хариул
+  await queue.push(event);                                // respond 2xx within 10s; process async
   res.sendStatus(200);
 });
 
-// Орох/гарах мэдэгдэл — 2xx БӨГӨӨД {"Success": true} (5с дотор)
+// Vehicle entry/exit notifications — reply 2xx AND {"Success": true} within 5s
 app.post("/parking/notification", express.json(), async (req, res) => {
   const n = parseVehicleNotification(req.body, req.headers);
-  // n.type: "vehicle.entry" | "vehicle.exit"; гарсныг plateNo + enteredDate-ээр хосло
+  // n.type: "vehicle.entry" | "vehicle.exit"
   await queue.push(n);
   res.json(VEHICLE_NOTIFICATION_ACK);
 });
 ```
 
-`receipt.ready`-ийн `amount`, `vat_amount` нь **текст** (`"1000.00"`).
+`parseWebhook()` returns `{ event, idempotencyKey, partner, isTest }`;
+`parseVehicleNotification()` returns `{ type, data, idempotencyKey, isTest }`.
+A malformed body throws `WebhookParseError`. On `receipt.ready` events, `amount`
+and `vat_amount` are **strings** (e.g. `"1000.00"`) — convert with `Number()`.
+`WEBHOOK_IPS` holds the known source IPs per environment.
 
-## Алдаа
+## Errors
 
 ```ts
 import { APIError, ConflictError, RateLimitError, APITimeoutError } from "easyparking";
 
-try { … } catch (err) {
+try {
+  // …
+} catch (err) {
   if (err instanceof APIError) {
-    err.status;  // 400, 409 …
-    err.detail;  // Монгол тайлбар: "Үнэ өөрчлөгдсөн…"
-    err.code;    // NO_AVAILABILITY / INVALID_PLATE (захиалга, машин бүртгэл)
-    err.body;    // raw (JSON биш бол текст — nginx 429 HTML)
+    err.status;  // 400, 409, …
+    err.detail;  // human-readable description (Mongolian)
+    err.code;    // NO_AVAILABILITY / INVALID_PLATE (reservations, vehicle registration)
+    err.body;    // raw body (text when not JSON, e.g. an nginx 429 HTML page)
+    err.headers; // response headers
   }
 }
 ```
 
-| Класс | HTTP |
+All errors extend `EasyParkingError`. HTTP responses map to status-specific subclasses:
+
+| Class | HTTP |
 |---|---|
 | `BadRequestError` | 400 |
 | `AuthenticationError` | 401 |
@@ -200,39 +269,44 @@ try { … } catch (err) {
 | `UnprocessableEntityError` | 422 |
 | `RateLimitError` | 429 |
 | `InternalServerError` | 5xx |
-| `APIConnectionError` / `APITimeoutError` | хариугүй |
+| `APIConnectionError` / `APITimeoutError` | no response (network / timeout) |
+| `APIUserAbortError` | aborted via `options.signal` |
 
-Машин бүртгэлийн `{"Success": false}` хариу мөн `APIError` болж throw хийгдэнэ.
+`{ "Success": false }` responses from the vehicle-registration endpoints are also
+thrown as `APIError`.
 
-### Автомат давталт (§13.3)
+### Automatic retries
 
-429 / 5xx / сүлжээний алдаанд `Retry-After`-ийг дагаж exponential backoff-оор давтана —
-**зөвхөн** давтахад аюулгүй хүсэлтэд:
+On 429 / 5xx / network errors, retry-safe requests are retried with exponential
+backoff, honoring `Retry-After`:
 
-| Хүсэлт | Автомат давталт |
+| Request | Auto-retried |
 |---|---|
-| Бүх GET | ✅ |
-| `payments.create` (ижил PENDING intent буцдаг) | ✅ |
+| All GET requests | ✅ |
+| `payments.create` (returns the same PENDING intent) | ✅ |
 | `payments.cancel`, `reservations.cancel` | ✅ |
-| `reservations.create` | ✅ зөвхөн `external_ref`-тэй үед |
+| `reservations.create` | ✅ only with `external_ref` |
 | `vehicles.register / delete / bill` | ✅ |
-| `payments.confirm`, `reservations.confirm` | ❌ — `confirmSafely()` / эхлээд GET |
+| `payments.confirm`, `reservations.confirm` | ❌ — use `confirmSafely()` / GET first |
 
-## Туслах функцууд
+## Utility functions
 
-| Функц | |
+| Function | Description |
 |---|---|
-| `normalizePlate(s)` | Зай/зураас хасаж том үсэг. Латиныг кирилл рүү **хөрвүүлэхгүй** |
-| `hasLatinLetters(s)` | Латин үсэгтэй дугаар — сервер таарахгүй |
-| `parseTime(s)` | API-ийн 3 цагийн форматыг (бүсгүй = UTC, микросекунд) `Date` болгоно |
-| `toZonedISOString(v)` | Захиалгын цаг — бүсгүй бол throw |
-| `formatUlaanbaatar(v)` | UTC+8-аар харуулах |
-| `isEasyParkingIP(ip, env?)` | PROD `202.21.117.178`, TEST `152.42.235.199` |
+| `normalizePlate(s)` | Strip spaces/dashes and uppercase. Does **not** transliterate Latin → Cyrillic |
+| `hasLatinLetters(s)` | True if the plate contains Latin letters (won't match the server) |
+| `parseTime(s)` | Parse the API's time formats (zoneless = UTC, ms/µs fractions) into a `Date` |
+| `toZonedISOString(v)` | Reservation times → zoned ISO string; throws if the zone is missing |
+| `formatUlaanbaatar(v, opts?)` | Format a time in Ulaanbaatar time (UTC+8) for display |
+| `isEasyParkingIP(ip, env?)` | Check a webhook source IP against the known EasyParking IPs |
 
-## Хөгжүүлэлт
+The `VERSION` constant exports the current client version.
+
+## Development
 
 ```bash
 npm install
+npm run typecheck
 npm test
 npm run build
 ```

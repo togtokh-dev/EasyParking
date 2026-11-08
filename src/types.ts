@@ -388,6 +388,11 @@ export interface Parking {
   reservable: boolean;
   reservationSpots: number;
   reservationFreeNow: number;
+  // Цахилгаан машины цэнэглэгч — spec v1.2-д бичигдээгүй, TEST-ийн хариунд ирдэг (2026-11-01)
+  hasEvCharger?: boolean;
+  evChargers?: unknown[];
+  evConnectorsTotal?: number;
+  evConnectorsFree?: number;
 }
 
 export interface ParkingListResponse {
