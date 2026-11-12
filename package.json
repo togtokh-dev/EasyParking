@@ -6,12 +6,12 @@
   "author": "togtokh.dev <togtokh.dev@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/togtokh-dev/EasyParking.git"
+    "url": "git+https://github.com/togtokh-dev/easyparking.git"
   },
   "bugs": {
-    "url": "https://github.com/togtokh-dev/EasyParking/issues"
+    "url": "https://github.com/togtokh-dev/easyparking/issues"
   },
-  "homepage": "https://github.com/togtokh-dev/EasyParking#readme",
+  "homepage": "https://github.com/togtokh-dev/easyparking#readme",
   "keywords": [
     "easyparking",
     "parking",
