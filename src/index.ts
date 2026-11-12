@@ -4,7 +4,7 @@ export * from "./errors.js";
 export type * from "./types.js";
 export type { ConfirmSafelyResult, ConfirmSafelyOptions } from "./resources/payments.js";
 export type { RouteVariant } from "./resources/misc.js";
-export { normalizePlate, hasLatinLetters, parseTime, toZonedISOString, formatUlaanbaatar } from "./utils.js";
+export { normalizePlate, hasLatinLetters, isValidPayerRegNo, parseTime, toZonedISOString, formatUlaanbaatar } from "./utils.js";
 export {
   parseWebhook,
   parseVehicleNotification,

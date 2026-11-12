@@ -2,6 +2,7 @@ import type { RequestOptions } from "../core.js";
 import type {
   BillResponse,
   ParkingListResponse,
+  PayerLookupResponse,
   RecentExitsParams,
   RecentExitsResponse,
   SessionListParams,
@@ -17,6 +18,16 @@ export class Sessions extends APIResource {
   /** Дугаараар зогсолт хайх, бүх зогсоолоос (§4.1). Олдохгүй бол `sessions: []`. */
   list(params: SessionListParams, options?: RequestOptions): Promise<SessionListResponse> {
     return this._get("/sessions", { plate: params.plate, site_code: params.site_code }, options);
+  }
+}
+
+export class EbarimtResource extends APIResource {
+  /**
+   * Байгууллагын нэрийг регистр (7 орон) / ТТД (11–14 орон)-оор шалгана (v1.3, §7.5).
+   * `available: false` бол суваг түр ажиллахгүй — «олдсонгүй» биш. Түлхүүр тутам минутад 60.
+   */
+  lookupPayer(regNo: string, options?: RequestOptions): Promise<PayerLookupResponse> {
+    return this._get("/ebarimt/payer", { reg_no: regNo.trim() }, options);
   }
 }
 

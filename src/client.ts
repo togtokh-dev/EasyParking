@@ -1,6 +1,6 @@
 import type { CoreConfig, Fetch } from "./core.js";
 import { EasyParkingError } from "./errors.js";
-import { Parkings, RecentExits, Sessions, Sites, Vehicles, type RouteVariant } from "./resources/misc.js";
+import { EbarimtResource, Parkings, RecentExits, Sessions, Sites, Vehicles, type RouteVariant } from "./resources/misc.js";
 import { Payments } from "./resources/payments.js";
 import { Reservations } from "./resources/reservations.js";
 import { VERSION } from "./version.js";
@@ -47,6 +47,7 @@ export class EasyParking {
   readonly payments: Payments;
   readonly reservations: Reservations;
   readonly vehicles: Vehicles;
+  readonly ebarimt: EbarimtResource;
 
   constructor(options: ClientOptions = {}) {
     const apiKey = options.apiKey ?? readEnv("EASYPARKING_API_KEY");
@@ -87,6 +88,7 @@ export class EasyParking {
     this.payments = new Payments(config);
     this.reservations = new Reservations(config);
     this.vehicles = new Vehicles(config, routes);
+    this.ebarimt = new EbarimtResource(config);
   }
 }
 

@@ -111,6 +111,8 @@ export interface RecentExitsResponse {
 // ─── e-Barimt (§7) ──────────────────────────────────────────────────────────
 
 export type ReceiptKind = "PARKING" | "DEBT" | "RESERVATION" | (string & {});
+/** Төлбөрийн түвшний баримтын төрөл (v1.3) */
+export type ReceiptType = "ORGANIZATION" | "CITIZEN" | (string & {});
 export type ReceiptStatus = "PENDING" | "SENT" | "FAILED" | "REVIEW" | (string & {});
 
 export interface Ebarimt {
@@ -125,6 +127,8 @@ export interface Ebarimt {
   status: ReceiptStatus;
   provider: string | null;
   receiver_type?: "CITIZEN" | "COMPANY" | (string & {});
+  /** Байгууллагын баримтад регистр/ТТД (v1.3) */
+  payer_reg_no?: string | null;
   error: string | null;
   /** Зөвхөн SENT баримтад, зөвхөн GET /payments/{id}-д. Авмагц өөрөө хадгална. */
   qr_data?: string | null;
@@ -148,6 +152,12 @@ export interface PaymentCreateParams {
   session_id: string;
   /** true — өмнөх айлчлалын өрийг хамт нэг төлбөрт нийлүүлнэ. Нэг зогсолтод тогтмол нэг утга. */
   include_debts?: boolean;
+  /**
+   * Байгууллагын e-Barimt (v1.3, §7.5): ААН регистр (7 орон) эсвэл ТТД (11–14 орон).
+   * Иргэний баримтад бүү илгээ. Буруу формат → 422. PENDING intent-ийг ижил
+   * session_id-аар дахин дуудахад хүлээн авагч шинэчлэгдэнэ.
+   */
+  payer_reg_no?: string;
 }
 
 export interface PaymentIntent {
@@ -161,6 +171,9 @@ export interface PaymentIntent {
   debt_amount: number;
   debt_count: number;
   debts: Debt[];
+  /** v1.3 */
+  receipt_type?: ReceiptType;
+  payer_reg_no?: string | null;
 }
 
 export interface PaymentConfirmParams {
@@ -168,6 +181,11 @@ export interface PaymentConfirmParams {
   transaction_id: string | number;
   /** Татсан дүн — intent-ийн amount-тай ЯГ тэнцүү. Давхар шалгалтад заавал илгээхийг зөвлөнө. */
   amount?: number;
+  /**
+   * Intent-д өгөөгүй бол энд (баримт үүсэхээс ӨМНӨ хэрэглэгдэнэ, v1.3).
+   * Давтан confirm хүлээн авагчийг өөрчлөхгүй.
+   */
+  payer_reg_no?: string;
 }
 
 interface PaymentStateFields {
@@ -189,6 +207,9 @@ interface PaymentStateFields {
   debt_amount: number;
   debt_count: number;
   debts: Debt[];
+  /** v1.3 */
+  receipt_type?: ReceiptType;
+  payer_reg_no?: string | null;
 }
 
 /**
@@ -213,6 +234,33 @@ export interface Payment extends PaymentStateFields {
 export interface PaymentCancelResponse {
   payment_id: string;
   status: "CANCELLED";
+}
+
+// ─── Байгууллагын e-Barimt (v1.3, §7.5) ─────────────────────────────────────
+
+export interface PayerLookupResponse {
+  reg_no: string;
+  receipt_type: ReceiptType;
+  /** false = шалгах суваг түр ажиллахгүй («олдсонгүй» биш) — төлбөрийг үргэлжлүүлж болно */
+  available: boolean;
+  found: boolean;
+  name: string | null;
+  tin: string | null;
+  is_vat_payer: boolean | null;
+}
+
+export interface PaymentEbarimtParams {
+  /** ААН регистр (7 орон) эсвэл ТТД (11–14 орон) */
+  payer_reg_no: string;
+}
+
+/** Spec хариуны бүтцийг бичээгүй — танигдсан талбаруудаас гадна бусдыг ч агуулж болно. */
+export interface PaymentEbarimtResponse {
+  payment_id?: string;
+  receipt_type?: ReceiptType;
+  payer_reg_no?: string | null;
+  ebarimts?: Ebarimt[];
+  [key: string]: unknown;
 }
 
 // ─── Захиалга (§9) ──────────────────────────────────────────────────────────

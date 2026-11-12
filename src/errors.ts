@@ -78,7 +78,11 @@ function extractDetail(body: unknown): { detail?: string; code?: string } {
   if (body && typeof body === "object") {
     const b = body as Record<string, unknown>;
     const detail = pickString(b.detail) ?? pickString(b.Detail);
-    const code = pickString(b.code) ?? (b.Success === false ? pickString(b.Message) : undefined);
+    const code =
+      pickString(b.code) ??
+      (b.Success === false ? pickString(b.Message) : undefined) ??
+      // "RECEIPT_ALREADY_ISSUED: баримт …" — detail-ийн угтвар код (v1.3)
+      (detail ? /^([A-Z][A-Z0-9_]{2,}):\s/.exec(detail)?.[1] : undefined);
     if (detail || code) return { detail: detail ?? code, code };
     // FastAPI-ийн 422: {"detail": [{"loc": ..., "msg": ...}]}
     if (Array.isArray(b.detail)) {

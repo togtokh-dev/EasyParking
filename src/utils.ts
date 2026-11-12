@@ -15,6 +15,15 @@ export function hasLatinLetters(plate: string): boolean {
 }
 
 /**
+ * Байгууллагын баримтын дугаар зөв эсэх (v1.3, §7.5): ААН регистр 7 орон эсвэл
+ * ТТД 11–14 орон, зөвхөн цифр. Иргэний регистр (үсэгтэй) false. Илгээхээс өмнө
+ * шалгаж 422-оос сэргийлнэ.
+ */
+export function isValidPayerRegNo(value: string): boolean {
+  return /^(\d{7}|\d{11,14})$/.test(value.trim());
+}
+
+/**
  * EasyParking-ийн цагийг Date болгоно (§2.2). Гурван хэлбэрийг бүгд:
  * бүсгүй ("…04:30:00.123456" — UTC гэж), миллисекунд+Z, микросекунд+Z.
  */

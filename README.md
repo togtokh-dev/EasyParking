@@ -1,6 +1,6 @@
 # easyparking
 
-Zero-dependency Node.js / TypeScript client for the **EasyParking × Wallet partner API** (Mongolia, spec v1.2) — used by wallet apps such as MonPay, SocialPay, EasyWallet and Ard to look up parking sessions, take payments (with outstanding debts), issue e-Barimt receipts, make advance reservations, show the parking map, register vehicles, and receive webhooks.
+Zero-dependency Node.js / TypeScript client for the **EasyParking × Wallet partner API** (Mongolia, spec v1.3) — used by wallet apps such as MonPay, SocialPay, EasyWallet and Ard to look up parking sessions, take payments (with outstanding debts), issue e-Barimt receipts (citizen or organization), make advance reservations, show the parking map, register vehicles, and receive webhooks.
 
 - **0 runtime dependencies** — uses the native `fetch` in Node 18+
 - Ships both **ESM and CommonJS** builds with full TypeScript types
@@ -70,7 +70,7 @@ EASYPARKING_BASE_URL=              # optional, overrides the environment URL
 The exported `BASE_URLS` record maps each environment to its base URL.
 
 The client exposes these resource groups: `ep.sessions`, `ep.recentExits`,
-`ep.payments`, `ep.reservations`, `ep.parkings`, `ep.sites`, `ep.vehicles`.
+`ep.payments`, `ep.ebarimt`, `ep.reservations`, `ep.parkings`, `ep.sites`, `ep.vehicles`.
 Every method takes an optional final `options` argument
 (`{ timeout?, maxRetries?, signal?, headers? }`).
 
@@ -122,6 +122,7 @@ switch (result.outcome) {
 | `confirmSafely(paymentId, params, options?)` | Confirm + reconciliation; returns `{ outcome: "PAID" \| "PAID_BY_OTHER_TRANSACTION" \| "UNRESOLVED", … }` |
 | `cancel(paymentId)` | Cancel an intent known not to be charged (retry-safe) |
 | `retrieve(paymentId)` | Fetch payment status and all e-Barimt receipts |
+| `setEbarimtPayer(paymentId, { payer_reg_no })` | After payment: switch a not-yet-issued receipt to an organization (v1.3). Not retried automatically |
 
 Call `confirm()` directly if you prefer, but it is **never retried automatically** —
 you must resolve the post-charge uncertainty yourself. `confirmSafely()` accepts
@@ -141,6 +142,33 @@ for (const r of p.ebarimts) {
   }
 }
 ```
+
+### Organization receipts (v1.3)
+
+To issue the receipt in a company's name, pass `payer_reg_no` — a 7-digit company
+register number or an 11–14 digit TIN. Omit it (never send an empty or citizen
+register) for the default citizen receipt with a lottery number.
+
+```ts
+import { isValidPayerRegNo } from "easyparking";
+
+if (!isValidPayerRegNo(regNo)) throw new Error("7-digit register or 11–14 digit TIN"); // avoids a 422
+
+// Optional: show the company name to the user first
+const payer = await ep.ebarimt.lookupPayer(regNo);
+// payer.available === false → the lookup service is down (NOT "not found") — you may still continue
+// payer.found, payer.name, payer.tin, payer.is_vat_payer
+
+// Send it BEFORE confirming — on the intent (recommended) or on confirm
+const intent = await ep.payments.create({ session_id, include_debts: true, payer_reg_no: regNo });
+// intent.receipt_type === "ORGANIZATION"
+```
+
+- All receipts of the payment (parking + each debt) go to the same organization; organization receipts have no lottery number.
+- Responses (intent, confirm, `retrieve`, `payment.paid`, `receipt.ready`) carry `receipt_type` (`ORGANIZATION` | `CITIZEN`) and `payer_reg_no`; each `ebarimts[]` row has `receiver_type` (`COMPANY` | `CITIZEN`) and `payer_reg_no`.
+- Re-calling `payments.create` on the same unpaid session updates the payer; a repeated confirm does not.
+- After payment, `payments.setEbarimtPayer()` works only while the receipt is not yet issued. Once it is `SENT` you get `409` with `err.code === "RECEIPT_ALREADY_ISSUED"` — EasyParking finance must handle it manually.
+- `lookupPayer` is rate-limited to 60 requests/minute per key.
 
 ## Reservations
 
@@ -250,7 +278,7 @@ try {
   if (err instanceof APIError) {
     err.status;  // 400, 409, …
     err.detail;  // human-readable description (Mongolian)
-    err.code;    // NO_AVAILABILITY / INVALID_PLATE (reservations, vehicle registration)
+    err.code;    // NO_AVAILABILITY / INVALID_PLATE / RECEIPT_ALREADY_ISSUED (when the API provides one)
     err.body;    // raw body (text when not JSON, e.g. an nginx 429 HTML page)
     err.headers; // response headers
   }
@@ -288,6 +316,7 @@ backoff, honoring `Retry-After`:
 | `reservations.create` | ✅ only with `external_ref` |
 | `vehicles.register / delete / bill` | ✅ |
 | `payments.confirm`, `reservations.confirm` | ❌ — use `confirmSafely()` / GET first |
+| `payments.setEbarimtPayer` | ❌ — check `retrieve()` first |
 
 ## Utility functions
 
@@ -295,6 +324,7 @@ backoff, honoring `Retry-After`:
 |---|---|
 | `normalizePlate(s)` | Strip spaces/dashes and uppercase. Does **not** transliterate Latin → Cyrillic |
 | `hasLatinLetters(s)` | True if the plate contains Latin letters (won't match the server) |
+| `isValidPayerRegNo(s)` | 7-digit company register or 11–14 digit TIN (organization e-Barimt) |
 | `parseTime(s)` | Parse the API's time formats (zoneless = UTC, ms/µs fractions) into a `Date` |
 | `toZonedISOString(v)` | Reservation times → zoned ISO string; throws if the zone is missing |
 | `formatUlaanbaatar(v, opts?)` | Format a time in Ulaanbaatar time (UTC+8) for display |

@@ -3,6 +3,7 @@ import {
   formatUlaanbaatar,
   hasLatinLetters,
   isEasyParkingIP,
+  isValidPayerRegNo,
   normalizePlate,
   parseTime,
   parseVehicleNotification,
@@ -21,6 +22,17 @@ describe("plates", () => {
     expect(hasLatinLetters("7886UKR")).toBe(true);
     expect(hasLatinLetters("7886УКР")).toBe(false);
     expect(normalizePlate("7886ukr")).toBe("7886UKR");
+  });
+});
+
+describe("payer reg no", () => {
+  it("accepts 7-digit register and 11–14 digit TIN only", () => {
+    expect(isValidPayerRegNo("6235971")).toBe(true);
+    expect(isValidPayerRegNo("12345678901")).toBe(true);
+    expect(isValidPayerRegNo("12345678901234")).toBe(true);
+    expect(isValidPayerRegNo("УБ99112233")).toBe(false); // иргэний регистр
+    expect(isValidPayerRegNo("123456")).toBe(false);
+    expect(isValidPayerRegNo("123456789")).toBe(false);
   });
 });
 

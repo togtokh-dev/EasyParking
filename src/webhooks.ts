@@ -5,7 +5,7 @@
  * `payments.retrieve()`-ээр status/amount/ebarimts-ыг баталгаажуул. Нэмэлтээр
  * `isEasyParkingIP()`-ээр эх IP-г шалгаж болно.
  */
-import type { Debt, Ebarimt, Reservation, SessionStatus, Timestamp } from "./types.js";
+import type { Debt, Ebarimt, ReceiptType, Reservation, SessionStatus, Timestamp } from "./types.js";
 
 export const WEBHOOK_IPS = {
   production: "202.21.117.178",
@@ -46,6 +46,9 @@ export interface PaymentPaidEvent {
   amount_due: number;
   needs_additional_payment: boolean;
   overpaid_amount: number;
+  /** v1.3 */
+  receipt_type?: ReceiptType;
+  payer_reg_no?: string | null;
   test?: false;
 }
 
@@ -70,6 +73,9 @@ export interface ReceiptReadyEvent {
   kind: "PARKING" | "DEBT" | "RESERVATION" | (string & {});
   debt_id: string | null;
   status: "SENT" | (string & {});
+  /** v1.3 — байгууллагын баримтад lottery гарахгүй */
+  receipt_type?: ReceiptType;
+  payer_reg_no?: string | null;
 }
 
 export type ReservationEventType =

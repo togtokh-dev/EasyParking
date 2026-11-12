@@ -150,6 +150,40 @@ describe("payments", () => {
   });
 });
 
+describe("organization e-Barimt (v1.3)", () => {
+  it("sends payer_reg_no on intent and confirm", async () => {
+    const { client, calls } = mockClient([
+      { body: { payment_id: "p1", amount: 4000, receipt_type: "ORGANIZATION", payer_reg_no: "6235971" } },
+      { body: { payment_id: "p1", status: "PAID" } },
+    ]);
+    const intent = await client.payments.create({ session_id: "s1", payer_reg_no: "6235971" });
+    expect(intent.receipt_type).toBe("ORGANIZATION");
+    await client.payments.confirm("p1", { transaction_id: "t", amount: 4000, payer_reg_no: "6235971" });
+    expect(calls[0]!.body).toEqual({ session_id: "s1", payer_reg_no: "6235971" });
+    expect(calls[1]!.body).toEqual({ transaction_id: "t", amount: 4000, payer_reg_no: "6235971" });
+  });
+
+  it("looks up a payer", async () => {
+    const res = { reg_no: "6235971", receipt_type: "ORGANIZATION", available: true, found: true, name: "Жишээ ХХК", tin: "12345678901", is_vat_payer: true };
+    const { client, calls } = mockClient([{ body: res }]);
+    await expect(client.ebarimt.lookupPayer(" 6235971 ")).resolves.toEqual(res);
+    expect(calls[0]!.url.pathname).toBe("/api/v1/ebarimt/payer");
+    expect(calls[0]!.url.searchParams.get("reg_no")).toBe("6235971");
+  });
+
+  it("setEbarimtPayer posts once and parses RECEIPT_ALREADY_ISSUED", async () => {
+    const { client, calls } = mockClient([
+      { status: 409, body: { detail: "RECEIPT_ALREADY_ISSUED: баримт иргэний нэр дээр аль хэдийн гарсан" } },
+    ]);
+    const err = await client.payments.setEbarimtPayer("p1", { payer_reg_no: "6235971" }).catch((e) => e);
+    expect(err).toBeInstanceOf(ConflictError);
+    expect(err.code).toBe("RECEIPT_ALREADY_ISSUED");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.pathname).toBe("/api/v1/payments/p1/ebarimt");
+    expect(calls[0]!.body).toEqual({ payer_reg_no: "6235971" });
+  });
+});
+
 describe("reservations", () => {
   it("rejects naive start_time locally", async () => {
     const { client, calls } = mockClient([]);

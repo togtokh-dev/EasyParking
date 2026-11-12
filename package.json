@@ -1,6 +1,6 @@
 {
   "name": "easyparking",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Zero-dependency Node.js/TypeScript client for the EasyParking (Mongolia) wallet-partner API: parking sessions, payments, e-Barimt receipts, reservations, vehicle registration, and webhooks.",
   "license": "MIT",
   "author": "togtokh.dev <togtokh.dev@gmail.com>",

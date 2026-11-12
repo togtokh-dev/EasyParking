@@ -14,6 +14,8 @@ import type {
   PaymentConfirmParams,
   PaymentConfirmResponse,
   PaymentCreateParams,
+  PaymentEbarimtParams,
+  PaymentEbarimtResponse,
   PaymentIntent,
 } from "../types.js";
 import { APIResource } from "./resource.js";
@@ -68,6 +70,20 @@ export class Payments extends APIResource {
    */
   cancel(paymentId: string, options?: RequestOptions): Promise<PaymentCancelResponse> {
     return this._post(`/payments/${enc(paymentId)}/cancel`, { outcome: "NOT_CHARGED" }, { ...options, idempotent: true });
+  }
+
+  /**
+   * Төлсний ДАРАА баримтыг байгууллагынх болгоно (v1.3, §7.5) — баримт хараахан
+   * илгээгдээгүй эсвэл суваг татгалзсан үед л. Аль хэдийн SENT бол 409
+   * RECEIPT_ALREADY_ISSUED (EasyParking-ийн санхүү гараар). Боломжтой бол
+   * `payer_reg_no`-г intent/confirm-д илгээ. Автоматаар давтахгүй.
+   */
+  setEbarimtPayer(
+    paymentId: string,
+    params: PaymentEbarimtParams,
+    options?: RequestOptions,
+  ): Promise<PaymentEbarimtResponse> {
+    return this._post(`/payments/${enc(paymentId)}/ebarimt`, params, { ...options, idempotent: false });
   }
 
   /** Төлөв + бүх e-Barimt (QR-тай) (§4.5). */
